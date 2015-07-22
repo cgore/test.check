@@ -170,13 +170,25 @@
   [n]
   (take-while (partial not= 0) (iterate #(quot % 2) n)))
 
+(defn- double-halfs
+  [n]
+  (take-while #(< 0.0 (Math/abs (double %))) (iterate #(quot % 2) n)))
+
 (defn- shrink-int
   [integer]
   (core/map (partial - integer) (halfs integer)))
 
+(defn- shrink-double
+  [double]
+  (core/map (partial - double) (double-halfs double)))
+
 (defn- int-rose-tree
   [value]
   (rose/make-rose value (core/map int-rose-tree (shrink-int value))))
+
+(defn- double-rose-tree
+  [value]
+  (rose/make-rose value (core/map double-rose-tree (shrink-double value))))
 
 (defn- rand-range
   [rnd lower upper]
@@ -188,6 +200,14 @@
       (+ lower (long (Math/floor (* factor width))))
       ;; Clamp down to upper because double math.
       (min upper (long (Math/floor (+ lower (* factor width))))))))
+
+(defn- double-rand-range
+  [rnd lower upper]
+  {:pre [(<= lower upper)]}
+  (let [factor (random/rand-double rnd)
+        ;; Use -' to maintain accuracy with overflow protection.
+        width (-' upper lower)]
+    (+ lower (* factor width))))
 
 (defn sized
   "Create a generator that depends on the size parameter.
@@ -228,6 +248,17 @@
         (rose/filter
           #(and (>= % lower) (<= % upper))
           (int-rose-tree value))))))
+
+(defn double-choose
+  "Create a generator that returns doubles in the range
+  `min-range` to `max-range`, inclusive."
+  [lower upper]
+  (make-gen
+    (fn [rnd _size]
+      (let [value (double-rand-range rnd lower upper)]
+        (rose/filter
+          #(and (>= % lower) (<= % upper))
+          (double-rose-tree value))))))
 
 (defn one-of
   "Create a generator that randomly chooses a value from the list of
